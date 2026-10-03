@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f6f7f5" />
+    <title>Temporal Atrium</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Temporal Atrium home"
+        ><span class="brand-mark">◷</span
+        ><span>TEMPORAL <strong>ATRIUM</strong></span></a
+      >
+      <div class="top-actions">
+        <span id="connection" class="connection">Connecting…</span
+        ><button id="leave" class="button subtle" hidden>Switch role</button>
+      </div>
+    </header>
+    <main id="app"></main>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <footer>
+      A different rhythm. A shared encounter.<span
+        >Temporal Atrium · Local session</span
+      >
+    </footer>
+  </body>
+</html>
