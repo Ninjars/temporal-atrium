@@ -53,21 +53,21 @@ try {
     false,
     "Role switch should be hidden on chooser",
   );
-  await click(dm, "Dungeon Master Guide the encounter ↗");
+  await click(dm, "Dungeon Master Manage encounter ↗");
   await dm.getByLabel("DM key").fill("browser-check-key");
   await click(dm, "Open encounter controls →");
   await visible(dm, "The Temporal Atrium");
   await player.goto(base);
-  await click(player, "Player Join the timeline ↗");
+  await click(player, "Player View turn order ↗");
   await player.getByLabel("Player name", { exact: true }).fill("Sam");
   await player.getByLabel("Character name", { exact: true }).fill("Mira");
   await player.getByLabel("Initiative roll").fill("22");
   await click(player, "Join the encounter →");
-  await visible(player, "You’re in the scene");
+  await visible(player, "Registered");
   await visible(dm, "Mira");
   await dm.getByLabel("Zone for Mira").selectOption("6");
   await rejoin.goto(base);
-  await click(rejoin, "Player Join the timeline ↗");
+  await click(rejoin, "Player View turn order ↗");
   await rejoin.getByLabel("Player name", { exact: true }).fill("Alex");
   await rejoin.getByLabel("Character name", { exact: true }).fill("Torren");
   await rejoin.getByLabel("Initiative roll").fill("12");
@@ -82,11 +82,19 @@ try {
     "live roster updates should update untouched defaults and preserve pending placement drafts",
   );
   await click(dm, "Remove Torren");
-  await click(dm, "Place");
+  await dm
+    .getByRole("button", { name: "Move Mira", exact: true })
+    .dragTo(dm.locator('[data-zone="6"]'));
+  await dm.waitForFunction(() =>
+    document
+      .querySelector('.zone[data-zone="6"] .zone-actor')
+      ?.textContent.includes("Mira"),
+  );
+  assert.equal(await dm.getByLabel("Zone for Mira").inputValue(), "6");
   await click(dm, "Begin encounter →");
-  await visible(player, "Watch the order shift as time bends around you.");
+  await visible(player, "LIVE ENCOUNTER");
   await rejoin.goto(base);
-  await click(rejoin, "M Mira →");
+  await click(rejoin, "Player Mira →");
   await visible(rejoin, "Mira");
   await click(dm, "Start");
   await visible(dm, "RUNNING");
@@ -97,14 +105,38 @@ try {
   await click(dm, "Resume");
   await visible(dm, "In 12 ticks");
   await dm.getByLabel("PC turns per activation").fill("1");
-  await click(dm, "Bring in the Grey Man");
+  await click(dm, "Enable Grey Man");
   await click(dm, "Begin next event →");
   await visible(player, "It’s your turn.");
-  await click(dm, "Finish turn →");
-  await click(dm, "Begin next event →");
+  await click(dm, "Finish & next →");
   await visible(dm, "OFF-CLOCK");
-  await click(dm, "Finish turn →");
-  await dm.getByLabel("Zone for Mira").selectOption("0");
+  await click(dm, "Finish & pause");
+  assert.ok(
+    (await player.locator(".event-row.pc").count()) > 1,
+    "Player forecast should include repeated turns across 12 ticks",
+  );
+
+  await dm
+    .getByRole("button", { name: "Move Mira", exact: true })
+    .dragTo(dm.locator('[data-zone="0"]'));
+  await dm.waitForFunction(() =>
+    document
+      .querySelector('.zone[data-zone="0"] .zone-actor.pc')
+      ?.textContent.includes("Mira"),
+  );
+  assert.equal(await dm.getByLabel("Zone for Mira").inputValue(), "0");
+  await dm
+    .getByRole("button", { name: "Move The Grey Man", exact: true })
+    .dragTo(dm.locator('[data-zone="1"]'));
+  await dm.waitForFunction(
+    () => document.querySelector("#grey-zone")?.value === "1",
+  );
+  assert.equal(await player.locator(".timeline-note").count(), 0);
+  assert.equal(
+    await player.getByText("Triggered by PC turns", { exact: true }).count(),
+    0,
+  );
+  await visible(player, "Phase 1/6: zones −6 and +6 will collapse");
   await click(dm, "Slow pillar in zone 0");
   // Move through a few turns and Grey Man activations until the first ritual phase.
   for (let i = 0; i < 18; i++) {
@@ -116,10 +148,10 @@ try {
       break;
     if (
       await dm
-        .getByRole("button", { name: "Finish turn →", exact: true })
+        .getByRole("button", { name: "Finish & next →", exact: true })
         .count()
     )
-      await click(dm, "Finish turn →");
+      await click(dm, "Finish & next →");
     else await click(dm, "Begin next event →");
   }
   await click(dm, "Resolve phase →");
@@ -154,9 +186,9 @@ try {
     "Player mobile should not overflow",
   );
   await click(dm, "Remove Mira");
-  await visible(player, "Enter the atrium");
-  await visible(rejoin, "Enter the atrium");
-  await click(player, "Player Join the timeline ↗");
+  await visible(player, "Choose a role");
+  await visible(rejoin, "Choose a role");
+  await click(player, "Player View turn order ↗");
   await player.getByLabel("Player name", { exact: true }).fill("Sam");
   await player
     .getByLabel("Character name", { exact: true })
@@ -166,7 +198,7 @@ try {
   await visible(dm, "<img src=x onerror=alert(1)>");
   assert.equal(await dm.locator("img").count(), 0);
   await rejoin.reload();
-  await visible(rejoin, "Already in the scene?");
+  await visible(rejoin, "Registered characters");
   await rejoin.evaluate(() =>
     Promise.all(document.getAnimations().map((a) => a.finished)),
   );
@@ -216,6 +248,21 @@ try {
     await dm.evaluate(() => document.activeElement.tagName),
     "BODY",
   );
+  // The example scene exercises all normal actor-type symbols together.
+  await click(dm, "Load example");
+  await visible(dm, "Giant spiders");
+  for (const type of ["pc", "npc", "enemy"])
+    assert.ok(
+      (await dm.locator(`.zone-actor.${type} .actor-icon.${type}`).count()) > 0,
+    );
+  await dm.setViewportSize({ width: 1440, height: 1100 });
+  await dm.evaluate(() =>
+    Promise.all(document.getAnimations().map((a) => a.finished)),
+  );
+  await dm.screenshot({
+    path: "/tmp/temporal-atrium-check/actor-zones.png",
+    fullPage: true,
+  });
   assert.deepEqual(errors, []);
   console.log(
     "PASS: registration, placement, rejoining, ritual controls, Grey Man, movement, pillar changes, collapse, refresh, removal, safe text, desktop/mobile layouts; no browser errors.",

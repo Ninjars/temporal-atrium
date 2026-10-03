@@ -29,11 +29,11 @@ test("chooser roster exposes only character names and IDs and omits removed PCs"
   s = applyCommand(s, { type: "removeActor", id: s.actors[0].id });
   assert.equal(publicRoster(s).length, 1);
 });
-test("player boundary stops at personal activation even when actors share a tick", () => {
+test("player view includes all actors and repeated turns across the full twelve tick window", () => {
   const s = fixture();
   s.actors[1].nextActivation = 0;
   const p = playerView(s, s.actors[0].id);
-  assert.equal(p.events.length, 1);
+  assert.equal(p.events.length, 7);
   assert.equal(p.events[0].name, "Mira");
   const json = JSON.stringify(p);
   for (const secret of [
@@ -113,4 +113,38 @@ test("DM can advance to events beyond the preview horizon", () => {
   assert.equal(d.events.length, 0);
   assert.equal(d.hasNext, true);
   assert.equal(d.nextEvent.at, 54);
+});
+test("player forecast continues past ritual phases, annotates collapse and leaves live state unchanged", () => {
+  let s = fixture();
+  s.actors[0].zone = 0;
+  s.actors[0].nextActivation = 4;
+  s.actors[1].nextActivation = 8;
+  s = applyCommand(s, { type: "ritualStart" });
+  s.ritual.next = 6;
+  s.ritual.progress = 1;
+  const before = structuredClone(s),
+    p = playerView(s, s.actors[0].id);
+  assert.deepEqual(
+    p.events.map((e) => e.kind),
+    ["actor", "ritual", "actor"],
+  );
+  const r = p.events[1];
+  assert.equal(r.ritualPhase, 2);
+  assert.equal(r.collapseZone, 5);
+  assert.deepEqual(s, before);
+});
+test("player forecast shows survivors after an active ritual and excludes projected collapsed occupants", () => {
+  let s = fixture();
+  s.actors[0].nextActivation = 7;
+  s.actors[1].nextActivation = 8;
+  s = applyCommand(s, { type: "ritualStart" });
+  s.ritual.next = 6;
+  s = applyCommand(s, { type: "beginNext" });
+  const p = playerView(s, s.actors[1].id);
+  assert.equal(p.events[0].name, "Torren");
+  assert.equal(
+    p.events.some((e) => e.name === "Mira"),
+    false,
+  );
+  assert.equal(s.actors[0].removed, false);
 });

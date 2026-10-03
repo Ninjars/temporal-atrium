@@ -1,26 +1,46 @@
-import { applyCommand, nextEvents } from "./encounter.js";
+import { applyCommand, nextEvents, hasStranded } from "./encounter.js";
 import { delayFor } from "./timing.js";
 export function publicRoster(s) {
   return s.actors
     .filter((a) => a.type === "pc" && !a.removed)
     .map((a) => ({ id: a.id, name: a.name }));
 }
-export function forecast(state, { horizon = 48, maxEvents = 100 } = {}) {
+// Forecasting never changes the live encounter. A full window assumes scheduled
+// ritual phases resolve; occupants of projected collapsed zones stop contributing turns.
+function projectRitual(s) {
+  const next = applyCommand(s, { type: "resolvePhase" });
+  for (const a of next.actors)
+    if (next.zones.find((z) => z.id === a.zone).collapsed) a.removed = true;
+  if (
+    next.grey.enabled &&
+    next.zones.find((z) => z.id === (next.grey.zone ?? 0)).collapsed
+  )
+    next.grey.enabled = false;
+  return next;
+}
+export function forecast(
+  state,
+  { horizon = 48, maxEvents = 100, throughRitual = false } = {},
+) {
   const events = [],
     occurrences = new Map();
   let s = structuredClone(state);
   if (s.phase === "setup")
     return { events: nextEvents(s).slice(0, maxEvents), truncated: false };
-  if (s.active?.kind === "ritual") return { events: [], truncated: false };
-  if (
-    s.actors.some(
-      (a) =>
-        !a.removed &&
-        a.placed &&
-        s.zones.find((z) => z.id === a.zone).collapsed,
+  if (s.active?.kind === "ritual") {
+    if (!throughRitual) return { events: [], truncated: false };
+    s = projectRitual(s);
+  }
+  if (hasStranded(s)) {
+    if (!throughRitual) return { events: [], truncated: false };
+    for (const a of s.actors)
+      if (s.zones.find((z) => z.id === a.zone).collapsed) a.removed = true;
+    if (
+      s.grey.enabled &&
+      s.zones.find((z) => z.id === (s.grey.zone ?? 0)).collapsed
     )
-  )
-    return { events: [], truncated: false };
+      s.grey.enabled = false;
+  }
   if (s.active) s = applyCommand(s, { type: "finishTurn" });
   while (events.length < maxEvents) {
     const e = nextEvents(s)[0];
@@ -28,9 +48,13 @@ export function forecast(state, { horizon = 48, maxEvents = 100 } = {}) {
     const occurrence = occurrences.get(e.key) ?? 0;
     occurrences.set(e.key, occurrence + 1);
     events.push({ ...e, key: `${e.key}:${occurrence}` });
-    if (e.kind === "ritual") return { events, truncated: false };
+    if (e.kind === "ritual" && !throughRitual)
+      return { events, truncated: false };
     s = applyCommand(s, { type: "beginNext" });
-    s = applyCommand(s, { type: "finishTurn" });
+    s =
+      e.kind === "ritual"
+        ? projectRitual(s)
+        : applyCommand(s, { type: "finishTurn" });
   }
   return { events, truncated: true };
 }
@@ -43,6 +67,8 @@ function publicEvent(e) {
         actorType: e.actorType ?? null,
         zone: e.zone ?? null,
         key: e.key,
+        ritualPhase: e.ritualPhase ?? null,
+        collapseZone: e.collapseZone ?? null,
       }
     : null;
 }
@@ -53,9 +79,7 @@ export function playerView(s, id) {
     waiting = !a.placed || s.phase === "setup";
   const f = waiting
     ? { events: [], truncated: false }
-    : forecast(s, { horizon: 12, maxEvents: 100 });
-  const personal = f.events.findIndex((e) => e.kind === "actor" && e.id === id);
-  const events = personal < 0 ? f.events : f.events.slice(0, personal + 1);
+    : forecast(s, { horizon: 12, maxEvents: 2000, throughRitual: true });
   return {
     removed: false,
     waiting,
@@ -69,8 +93,8 @@ export function playerView(s, id) {
       collapsed: zone.collapsed,
     },
     active: publicEvent(s.active),
-    events: events.map(publicEvent),
-    truncated: personal < 0 && f.truncated,
+    events: f.events.map(publicEvent),
+    truncated: f.truncated,
     ritual: { status: s.ritual.status, progress: s.ritual.progress },
     grey: s.grey.enabled
       ? {

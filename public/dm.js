@@ -11,6 +11,7 @@ import {
   fmt,
   zoneLabel,
   copyLink,
+  actorIcon,
 } from "./ui.js";
 export function renderDM(s, { command, notify }) {
   const active = s.active,
@@ -18,6 +19,11 @@ export function renderDM(s, { command, notify }) {
     stranded = s.actors.filter(
       (a) => a.placed && s.zones.find((z) => z.id === a.zone).collapsed,
     );
+  if (
+    s.grey.enabled &&
+    s.zones.find((z) => z.id === (s.grey.zone ?? 0)).collapsed
+  )
+    stranded.push({ name: "The Grey Man" });
   const act = (type, payload = {}) => command({ type, ...payload });
   const share = () => copyLink(s.joinUrls[0], notify);
   const heading = el(
@@ -28,11 +34,6 @@ export function renderDM(s, { command, notify }) {
       {},
       el("p", { class: "eyebrow" }, "ENCOUNTER CONTROL"),
       el("h1", {}, "The Temporal Atrium"),
-      el(
-        "p",
-        { class: "subtitle" },
-        "Every position changes the rhythm. You keep the time.",
-      ),
     ),
     el(
       "div",
@@ -99,6 +100,39 @@ export function renderDM(s, { command, notify }) {
       ),
     ),
   );
+  function positionRow(a) {
+    return el(
+      "button",
+      {
+        type: "button",
+        class: `zone-actor ${a.type}`,
+        draggable: "true",
+        title: a.name,
+        "aria-label": `Move ${a.name}`,
+        "data-actor-id": a.id,
+        onDragStart: (e) => {
+          e.dataTransfer.setData("text/plain", a.id);
+          e.dataTransfer.effectAllowed = "move";
+        },
+      },
+      actorIcon(a.type, true),
+      el("span", {}, a.name),
+    );
+  }
+  const zoneActors = [
+    ...s.actors,
+    ...(s.grey.enabled
+      ? [
+          {
+            id: "grey",
+            name: "The Grey Man",
+            type: "grey",
+            placed: true,
+            zone: s.grey.zone ?? 0,
+          },
+        ]
+      : []),
+  ];
   const zones = el(
     "section",
     { class: "zone-panel" },
@@ -106,19 +140,57 @@ export function renderDM(s, { command, notify }) {
       "div",
       { class: "panel-heading" },
       el("h2", {}, "The atrium"),
-      el("span", { class: "muted" }, "SLOW ← temporal rate → FAST"),
+      el(
+        "div",
+        { class: "actor-legend" },
+        ["pc", "npc", "enemy", "grey"].map((type, i) =>
+          el(
+            "span",
+            {},
+            actorIcon(type, true),
+            ["Player", "NPC", "Enemy", "Grey Man"][i],
+          ),
+        ),
+      ),
     ),
     el(
       "div",
       { class: "zone-strip" },
       s.zones.map((z) => {
-        const count = s.actors.filter(
-          (a) => a.placed && a.zone === z.id,
-        ).length;
+        const occupants = zoneActors.filter((a) => a.placed && a.zone === z.id);
         const card = el(
           "div",
           {
             class: `zone ${z.id < 0 ? "slow" : z.id > 0 ? "fast" : "normal"} ${z.collapsed ? "collapsed" : ""} ${z.step !== z.id ? "altered" : ""}`,
+            "data-zone": z.id,
+            "aria-label": `Zone ${zoneLabel(z.id)}`,
+            onDragOver: (e) => {
+              if (!z.collapsed) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                card.classList.add("drop-target");
+              }
+            },
+            onDragLeave: (e) => {
+              if (!card.contains(e.relatedTarget))
+                card.classList.remove("drop-target");
+            },
+            onDrop: (e) => {
+              e.preventDefault();
+              card.classList.remove("drop-target");
+              if (z.collapsed) return;
+              const id = e.dataTransfer.getData("text/plain"),
+                a = zoneActors.find((a) => a.id === id);
+              if (!a || (a.placed && a.zone === z.id)) return;
+              act(
+                id === "grey"
+                  ? "moveGreyMan"
+                  : a.placed
+                    ? "moveActor"
+                    : "placeActor",
+                { id, zone: z.id },
+              );
+            },
           },
           el("strong", {}, zoneLabel(z.id)),
           el(
@@ -128,19 +200,20 @@ export function renderDM(s, { command, notify }) {
               ? "Collapsed"
               : `${fmt(12 / [48, 36, 24, 18, 16, 14, 12, 10, 8, 6, 5, 4, 3][z.step + 6])}×`,
           ),
-          el("small", {}, `${count} ${count === 1 ? "actor" : "actors"}`),
-          button(
-            "↓",
-            () => act("slowPillar", { zone: z.id }),
-            "pillar",
-            z.collapsed || z.step === -6,
-          ),
+          el("div", { class: "zone-occupants" }, occupants.map(positionRow)),
         );
-        card.lastChild.setAttribute(
+        const slow = button(
+          "↓",
+          () => act("slowPillar", { zone: z.id }),
+          "pillar",
+          z.collapsed || z.step === -6,
+        );
+        slow.setAttribute(
           "aria-label",
           `Slow pillar in zone ${zoneLabel(z.id)}`,
         );
-        card.lastChild.title = "Slow this zone one temporal step";
+        slow.title = "Slow this zone one temporal step";
+        const controls = el("div", { class: "zone-tools" }, slow);
         if (z.step !== z.id && !z.collapsed) {
           const restore = button(
             "Restore",
@@ -151,15 +224,24 @@ export function renderDM(s, { command, notify }) {
             "aria-label",
             `Restore pillar in zone ${zoneLabel(z.id)}`,
           );
-          card.append(restore);
+          controls.append(restore);
         }
+        card.append(controls);
         return card;
       }),
     ),
+    pending.length
+      ? el(
+          "div",
+          { class: "unplaced-actors" },
+          el("span", {}, "Awaiting placement"),
+          pending.map(positionRow),
+        )
+      : null,
     el(
       "p",
       { class: "zone-help" },
-      "↓ Slow a pillar one step. Waiting turns immediately shift to preserve their progress.",
+      "Drag actors between zones, or use their zone selectors. ↓ slows a pillar one step.",
     ),
   );
   const roster = el(
@@ -176,7 +258,12 @@ export function renderDM(s, { command, notify }) {
               el(
                 "div",
                 {},
-                el("strong", {}, a.name),
+                el(
+                  "strong",
+                  { class: "actor-name" },
+                  actorIcon(a.type, true),
+                  a.name,
+                ),
                 el(
                   "small",
                   {},
@@ -241,10 +328,7 @@ export function renderDM(s, { command, notify }) {
           card.append(row);
           return card;
         })
-      : empty(
-          "The cast is gathering",
-          "Players can register from the shared link.",
-        ),
+      : empty("No actors added", "Players can register from the shared link."),
   );
   const add = el(
     "details",
@@ -336,7 +420,7 @@ export function renderDM(s, { command, notify }) {
       el(
         "span",
         { class: "eyebrow" },
-        s.phase === "setup" ? "READY WHEN YOU ARE" : "HAPPENING NOW",
+        s.phase === "setup" ? "SETUP" : "CURRENT EVENT",
       ),
       active
         ? badge(
@@ -350,12 +434,13 @@ export function renderDM(s, { command, notify }) {
     ),
     el(
       "h2",
-      {},
+      { class: "current-name" },
+      active ? actorIcon(active.actorType ?? active.kind) : null,
       s.phase === "setup"
-        ? "Set the scene"
+        ? "Starting positions"
         : active
           ? active.name
-          : "Between moments",
+          : "Ready for next event",
     ),
     el(
       "p",
@@ -366,7 +451,7 @@ export function renderDM(s, { command, notify }) {
           ? `Phase ${s.ritual.progress + 1} is ready. Resolve it to collapse the next outer zones.`
           : active
             ? "Resolve actions at the table, then finish this turn."
-            : "Advance when everyone at the table is ready.",
+            : "Begin the next event to advance the clock.",
     ),
     s.phase === "setup"
       ? button(
@@ -377,8 +462,11 @@ export function renderDM(s, { command, notify }) {
         )
       : active
         ? button(
-            active.kind === "ritual" ? "Resolve phase →" : "Finish turn →",
-            () => act(active.kind === "ritual" ? "resolvePhase" : "finishTurn"),
+            active.kind === "ritual" ? "Resolve phase →" : "Finish & next →",
+            () =>
+              act(
+                active.kind === "ritual" ? "resolvePhase" : "finishAndAdvance",
+              ),
             "primary wide",
           )
         : button(
@@ -388,13 +476,17 @@ export function renderDM(s, { command, notify }) {
             !s.hasNext || stranded.length > 0,
           ),
   );
+  if (active && active.kind !== "ritual")
+    current.append(
+      button("Finish & pause", () => act("finishTurn"), "subtle wide"),
+    );
   const timeline = panel(
     s.phase === "setup" ? "Opening sequence" : "Coming up",
     s.events.length
       ? eventRows(s.events, { ticks: true })
       : empty(
           s.phase === "setup"
-            ? "A place for every moment"
+            ? "No opening sequence"
             : s.hasNext
               ? "Beyond the preview"
               : "No turns scheduled",
@@ -417,7 +509,7 @@ export function renderDM(s, { command, notify }) {
       { class: "timeline-note" },
       s.truncated
         ? "Preview limited to 100 events."
-        : "Projected at current rates. The future stops at the next unresolved ritual phase.",
+        : "Preview uses current rates and stops at the next ritual phase.",
     ),
   );
   const ritual = panel(
@@ -438,8 +530,8 @@ export function renderDM(s, { command, notify }) {
         "p",
         { class: "muted" },
         s.ritual.status === "suspended"
-          ? "Progress is held. Resume when the casters recover."
-          : "Control the clock as conditions change at the table.",
+          ? "Progress saved. Resume schedules the next phase in 12 ticks."
+          : "Adjust the ritual timing as needed.",
       ),
       el(
         "div",
@@ -496,7 +588,7 @@ export function renderDM(s, { command, notify }) {
         "data-mutate": "true",
         disabled: active?.kind === "grey",
       },
-      s.grey.enabled ? "Apply & reset counter" : "Bring in the Grey Man",
+      s.grey.enabled ? "Apply & reset counter" : "Enable Grey Man",
     ),
   );
   greyForm.addEventListener("submit", (e) => {
@@ -507,7 +599,12 @@ export function renderDM(s, { command, notify }) {
     });
   });
   const grey = panel(
-    "The Grey Man",
+    el(
+      "span",
+      { class: "actor-name" },
+      actorIcon("grey", true),
+      "The Grey Man",
+    ),
     el(
       "div",
       { class: "panel-body" },
@@ -526,8 +623,18 @@ export function renderDM(s, { command, notify }) {
       el(
         "p",
         { class: "muted" },
-        "He follows player activity, wherever time flows.",
+        "Acts after the set number of completed PC turns.",
       ),
+      s.grey.enabled
+        ? el(
+            "label",
+            { class: "field" },
+            el("span", {}, "Zone for the Grey Man"),
+            zoneSelect("grey-zone", s.zones, s.grey.zone ?? 0, (e) =>
+              act("moveGreyMan", { zone: Number(e.target.value) }),
+            ),
+          )
+        : null,
       greyForm,
       s.grey.enabled
         ? button(

@@ -13,7 +13,7 @@ export function createEncounter() {
     })),
     active: null,
     ritual: { status: "idle", progress: 0, next: null },
-    grey: { enabled: false, partySize: 1, count: 0, pending: false },
+    grey: { enabled: false, partySize: 1, count: 0, pending: false, zone: 0 },
     history: [],
     serial: 0,
   };
@@ -52,9 +52,17 @@ export function nextEvents(s) {
       at: s.ritual.next,
       name: "Ritual phase",
       key: "ritual",
+      ritualPhase: s.ritual.progress + 1,
+      collapseZone: 6 - s.ritual.progress,
     });
   if (s.grey.enabled && s.grey.pending)
-    events.push({ kind: "grey", at: s.now, name: "The Grey Man", key: "grey" });
+    events.push({
+      kind: "grey",
+      at: s.now,
+      name: "The Grey Man",
+      key: "grey",
+      zone: s.grey.zone ?? 0,
+    });
   for (const a of live(s))
     if (
       a.placed &&
@@ -106,8 +114,20 @@ function relocate(s, a, zone) {
       );
   }
 }
+export function hasStranded(s) {
+  return (
+    live(s).some((a) => a.placed && zoneOf(s, a.zone, true).collapsed) ||
+    (s.grey.enabled && zoneOf(s, s.grey.zone ?? 0, true).collapsed)
+  );
+}
 export function applyCommand(state, c) {
   requireThat(c && typeof c.type === "string", "Invalid command.");
+  if (c.type === "finishAndAdvance") {
+    const finished = applyCommand(state, { type: "finishTurn" });
+    return !hasStranded(finished) && nextEvents(finished).length
+      ? applyCommand(finished, { type: "beginNext" })
+      : finished;
+  }
   const s = structuredClone(state);
   switch (c.type) {
     case "register":
@@ -186,10 +206,7 @@ export function applyCommand(state, c) {
     case "beginNext": {
       running(s);
       requireThat(!s.active, "Finish the current event first.");
-      requireThat(
-        !live(s).some((a) => a.placed && zoneOf(s, a.zone, true).collapsed),
-        "Resolve actors in collapsed zones first.",
-      );
+      requireThat(!hasStranded(s), "Resolve actors in collapsed zones first.");
       const next = nextEvents(s)[0];
       requireThat(next, "No events scheduled.");
       s.now = Math.max(s.now, next.at);
@@ -297,6 +314,12 @@ export function applyCommand(state, c) {
       );
       break;
     }
+    case "moveGreyMan":
+      requireThat(s.grey.enabled, "The Grey Man is not present.");
+      s.grey.zone = zoneOf(s, c.zone).id;
+      if (s.active?.kind === "grey") s.active.zone = s.grey.zone;
+      log(s, `The Grey Man moved to zone ${s.grey.zone}.`);
+      break;
     case "configureGreyMan":
       requireThat(s.active?.kind !== "grey", "Finish the Grey Man turn first.");
       requireThat(
@@ -311,6 +334,7 @@ export function applyCommand(state, c) {
         partySize: c.partySize,
         count: 0,
         pending: false,
+        zone: s.grey.zone ?? 0,
       };
       log(
         s,

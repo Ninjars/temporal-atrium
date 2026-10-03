@@ -207,3 +207,44 @@ test("restoring a slowed pillar accelerates waiting actors using current progres
   s = cmd(s, "restorePillar", { zone: 0 });
   assert.ok(Math.abs(s.actors[0].nextActivation - (7 + 36 / 7)) < 1e-10);
 });
+test("finish and advance completes exactly one turn and starts the next atomically", () => {
+  let s = ready();
+  s = cmd(s, "configureGreyMan", { enabled: true, partySize: 1 });
+  s = cmd(s, "beginNext");
+  s = cmd(s, "finishAndAdvance");
+  assert.equal(s.active.kind, "grey");
+  assert.equal(s.now, 0);
+  assert.equal(s.actors[0].nextActivation, 12);
+  s = cmd(s, "finishAndAdvance");
+  assert.equal(s.active.kind, "actor");
+  assert.equal(s.now, 12);
+});
+test("automatic advance stops on a ritual without resolving it and allows a deliberate pause", () => {
+  let s = ready();
+  s = cmd(s, "ritualStart");
+  s = cmd(s, "beginNext");
+  s = cmd(s, "finishAndAdvance");
+  assert.equal(s.active.kind, "ritual");
+  assert.equal(s.ritual.progress, 0);
+  s = cmd(s, "resolvePhase");
+  s = cmd(s, "beginNext");
+  s = cmd(s, "finishTurn");
+  assert.equal(s.active, null);
+});
+test("Grey Man position is independent of scheduling and a collapsed zone blocks advancement", () => {
+  let s = ready();
+  s = cmd(s, "configureGreyMan", { enabled: true, partySize: 1 });
+  s = cmd(s, "moveGreyMan", { zone: 6 });
+  s = cmd(s, "beginNext");
+  s = cmd(s, "finishAndAdvance");
+  assert.equal(s.active.kind, "grey");
+  assert.equal(s.grey.zone, 6);
+  s = cmd(s, "moveGreyMan", { zone: -6 });
+  assert.equal(s.grey.pending, true);
+  assert.equal(s.now, 0);
+  s = cmd(s, "finishTurn");
+  s.zones.find((z) => z.id === -6).collapsed = true;
+  assert.throws(() => cmd(s, "beginNext"), /collapsed/i);
+  s = cmd(s, "moveGreyMan", { zone: 0 });
+  assert.doesNotThrow(() => cmd(s, "beginNext"));
+});

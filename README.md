@@ -20,11 +20,11 @@ Set `PORT=3001 npm start` to use a different port. `HOST=127.0.0.1 npm start` li
 1. On the chooser screen, select **Dungeon Master** and paste the terminal's DM key. The private DM link pre-fills it.
 2. Players select **Player** and enter their player name, character name, and initiative total. Registered characters also appear on the chooser for easy rejoining from any device. Player names are visible only to the DM.
 3. The DM assigns and confirms each player's starting zone. Add enemies or NPC groups directly, or load the optional example scene to explore the controls.
-4. **Begin encounter** locks the opening sequence. **Begin next event** advances the clock. Resolve the turn at the table, change positions as needed, then **Finish turn**.
-5. Move actors with their zone selector. The ↓ button under a zone slows its pillar one rate step; Restore returns its original rate. Waiting turns recalculate immediately.
+4. **Begin encounter** locks the opening sequence. **Begin next event** advances the clock. Resolve the turn at the table, change positions as needed, then **Finish & next** to start the next event in the same action. Use **Finish & pause** when you need to make changes between turns. Ritual phases still require explicit resolution.
+5. Drag actor rows between atrium zones, or use their zone selector. Dragging an unplaced player into a zone confirms its starting placement. The ↓ button under a zone slows its pillar one rate step; Restore returns its original rate. Waiting turns recalculate immediately.
 6. Use the ritual clock independently of combat: **Start** schedules a phase in 12 ticks; **Delay +6** adds six ticks to its due time; **Interrupt** cancels pending ritual progress; **Resume** schedules the next unfinished phase in 12 ticks. Resolve a due phase to collapse the next outer pair. The next phase follows in 12 ticks unless delayed/interrupted. Six phases complete the ritual.
 7. If actors are stranded in a collapsed zone, adjudicate their fate and move or remove them before advancing.
-8. Bring in the **Grey Man** when desired. He acts after every N completed player turns, even if one fast character took several of them. Applying a new configuration resets his counter. His party size stays fixed when characters are removed.
+8. Bring in the **Grey Man** when desired. He acts after every N completed player turns, even if one fast character took several of them. Applying a new configuration resets his counter. His party size stays fixed when characters are removed. His zone is tracked for positioning and collapse, but does not affect his activation counter; he can be dragged between zones too.
 
 Remove accidental registrations with the × button on their roster card. Removal also clears their future turns and rejoin entry. **Undo last change** restores the previous scene state, including removed actors. Up to 50 changes are retained. Undo is global, so check Recent changes before using it in a busy session.
 
@@ -49,7 +49,9 @@ At setup, actors sort by descending initiative, with registration/insertion orde
 
 At equal ticks: ritual phase, then triggered Grey Man, then normal actors by initiative. No event interrupts an active turn.
 
-Player views show current activity and the upcoming sequence through the earliest of their next turn, the next ritual phase, or twelve ticks into the future. Exact ticks, DM history, and private player metadata are excluded from player messages. Projections assume no further temporal changes and stop at unresolved ritual phases.
+Player views show current activity and all upcoming events in the next twelve ticks. Forecasts assume scheduled ritual phases succeed and exclude subsequent turns for occupants of projected collapsed zones. Delaying or interrupting the ritual updates the forecast immediately. Ritual rows identify the phase and both zones that will collapse. Exact ticks, DM history, and private player metadata remain excluded from player messages. The DM's longer preview still stops at the next unresolved ritual phase.
+
+Actor symbols are consistent throughout: blue ◆ player, green ● NPC, red ▲ enemy, and emphasized red ✦ Grey Man.
 
 ## State and recovery
 

@@ -89,3 +89,13 @@ This is an encounter tracker, not a virtual tabletop. Reactions, readied actions
 Automated tests cover the 26→27 worked rescheduling example; acceleration and deceleration; repeated changes at one tick and across elapsed time; unchanged rates; movement versus pillar equivalence; progress bounds and epsilon; active-turn movement; initiative ties; initial rate-weighted seeding; setup placement and preview recomputation; required registration fields; duplicate submission/reconnection; rejoining through the public character list; removal of pending, waiting, and active characters; connected-viewer removal handling; late player placement without reseeding; mid-encounter entry; Grey Man counting and event precedence; idle ritual with no events; START and RESUME at now + 12; cumulative DELAY from the existing due time; INTERRUPT removing pending events while preserving progress; delay/interruption of a due unresolved phase; invalid ritual transitions; all six collapses; collapsed-zone adjudication; undo; public-view horizons and absence of DM-only state; and invalid/stale/unauthorised commands.
 
 Verify a running DM and player client receive consistent live changes, reconnect successfully, and cannot issue DM commands; confirm registration is the only unauthenticated roster-creation operation and is validated and bounded. Inspect desktop and narrow-screen layouts and exercise an encounter from setup through a pulse and Grey Man activation.
+
+## Approved interaction revisions
+
+These later user requests supersede the original UI and projection details above:
+- Pragmatic labels and instructions; remove decorative/editorial text.
+- Actor rows and drag-and-drop between atrium zones, with existing selectors retained.
+- Consistent blue ◆ PC, green ● NPC, red ▲ enemy and emphasized red ✦ Grey Man identifiers.
+- Player Coming up always covers 12 ticks, including beyond personal turns and scheduled ritual events. Scheduled ritual success is assumed only in the forecast.
+- Ritual cards name the phase and collapsing zone pair; Grey Man cards omit the counter explanation.
+- Finish & next completes and advances atomically. Finish & pause allows manual intervention; ritual resolution remains explicit.

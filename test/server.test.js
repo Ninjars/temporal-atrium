@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import WebSocket from "ws";
+import { createEncounter, applyCommand } from "../src/encounter.js";
 import { createServer } from "../src/server.js";
 async function fixture(t) {
   const app = createServer({
@@ -198,4 +199,39 @@ test("DM snapshot supplies player join URLs independent of localhost browser URL
   assert.ok(Array.isArray(m.data.joinUrls));
   assert.ok(m.data.joinUrls.length > 0);
   assert.ok(m.data.joinUrls.every((url) => !url.includes("localhost")));
+});
+
+test("server can preserve a running scene and undo finish-and-next as one change", async (t) => {
+  let state = applyCommand(createEncounter(), {
+    type: "addActor",
+    name: "Mira",
+    actorType: "pc",
+    playerName: "Sam",
+    initiative: 20,
+    zone: 0,
+  });
+  state = applyCommand(state, { type: "beginEncounter" });
+  state = applyCommand(state, { type: "beginNext" });
+  const app = createServer({
+    port: 0,
+    host: "127.0.0.1",
+    dmToken: "test-host-token",
+    initialState: state,
+  });
+  await app.listen();
+  t.after(() => app.close());
+  const c = await client(t, app);
+  await c.send("subscribe", { role: "dm", token: "test-host-token" });
+  const initial = await c.wait((m) => m.role === "dm");
+  assert.equal(initial.data.active.name, "Mira");
+  assert.equal(initial.data.now, 0);
+  await c.send("command", { type: "finishAndAdvance" }, 0);
+  const next = await c.wait((m) => m.role === "dm" && m.revision === 1);
+  assert.equal(next.data.now, 12);
+  assert.equal(next.data.active.name, "Mira");
+  await c.send("command", { type: "undo" }, 1);
+  const undone = await c.wait((m) => m.role === "dm" && m.revision === 2);
+  assert.equal(undone.data.now, 0);
+  assert.equal(undone.data.active.name, "Mira");
+  assert.equal(state.now, 0);
 });

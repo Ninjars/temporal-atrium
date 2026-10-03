@@ -1,4 +1,4 @@
-import { el, button, badge, field, empty, copyLink } from "./ui.js";
+import { el, button, badge, field, empty, copyLink, actorIcon } from "./ui.js";
 import { renderDM } from "./dm.js";
 import { renderPlayer } from "./player.js";
 const root = document.querySelector("#app"),
@@ -155,13 +155,8 @@ function chooser() {
   const intro = el(
     "section",
     { class: "welcome" },
-    el("p", { class: "eyebrow" }, "WELCOME TO THE ENCOUNTER"),
-    el("h1", {}, "One room. ", el("br"), "Thirteen rhythms."),
-    el(
-      "p",
-      { class: "subtitle" },
-      "Step into the Temporal Atrium. Choose your role, find your character, and follow the flow of time.",
-    ),
+    el("h1", {}, "Temporal Atrium"),
+    el("p", { class: "subtitle" }, "Encounter tracker"),
     el(
       "div",
       { class: "welcome-art", "aria-hidden": "true" },
@@ -193,7 +188,7 @@ function chooser() {
         "span",
         {},
         el("strong", {}, "Dungeon Master"),
-        el("small", {}, "Guide the encounter"),
+        el("small", {}, "Manage encounter"),
         el("b", {}, "↗"),
       ),
       () => {
@@ -207,7 +202,7 @@ function chooser() {
         "span",
         {},
         el("strong", {}, "Player"),
-        el("small", {}, "Join the timeline"),
+        el("small", {}, "View turn order"),
         el("b", {}, "↗"),
       ),
       () => {
@@ -310,14 +305,10 @@ function chooser() {
     el(
       "div",
       { class: "panel-heading" },
-      el("h2", {}, "Already in the scene?"),
+      el("h2", {}, "Registered characters"),
       badge(String(roster.length)),
     ),
-    el(
-      "p",
-      { class: "muted" },
-      "Choose your character to pick up where you left off.",
-    ),
+    el("p", { class: "muted" }, "Select your character to rejoin."),
     roster.length
       ? el(
           "div",
@@ -327,11 +318,7 @@ function chooser() {
               el(
                 "span",
                 {},
-                el(
-                  "span",
-                  { class: "avatar" },
-                  a.name.slice(0, 1).toUpperCase(),
-                ),
+                actorIcon("pc", true),
                 el("strong", {}, a.name),
                 el("span", { class: "rejoin-arrow" }, "→"),
               ),
@@ -340,11 +327,7 @@ function chooser() {
             ),
           ),
         )
-      : el(
-          "p",
-          { class: "no-players" },
-          "No characters yet. Be the first to join.",
-        ),
+      : el("p", { class: "no-players" }, "No characters registered."),
   );
   return el(
     "div",
@@ -353,8 +336,8 @@ function chooser() {
     el(
       "section",
       { class: "join-panel" },
-      el("p", { class: "eyebrow" }, "TAKE YOUR PLACE"),
-      el("h2", { class: "join-heading" }, "Enter the atrium"),
+      el("p", { class: "eyebrow" }, "LOCAL SESSION"),
+      el("h2", { class: "join-heading" }, "Choose a role"),
       choices,
       form,
       characters,
@@ -389,10 +372,7 @@ function render() {
         ? renderPlayer(data)
         : role === "chooser"
           ? chooser()
-          : empty(
-              "Connecting to the scene",
-              "Your timeline will appear in a moment.",
-            );
+          : empty("Connecting", "Waiting for the server.");
   root.replaceChildren(view);
   for (const [id, draft] of drafts) {
     const n = document.getElementById(id);

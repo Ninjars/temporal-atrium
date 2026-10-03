@@ -30,8 +30,9 @@ export function createServer({
   port = 3000,
   host = "0.0.0.0",
   dmToken = randomBytes(24).toString("hex"),
+  initialState = createEncounter(),
 } = {}) {
-  let state = createEncounter(),
+  let state = structuredClone(initialState),
     revision = 0;
   const undo = [],
     registrations = new Map();

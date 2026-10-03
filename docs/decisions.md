@@ -29,3 +29,14 @@ Plan: docs/superpowers/plans/2026-10-03-temporal-atrium.md
 - Desktop and 390px mobile screenshots inspected. No browser JavaScript errors.
 - `git diff --check`: clean.
 - Task 5 complete: README and decision record delivered. App left running with a fresh empty scene; the example encounter is available through the DM controls. Retained on `codex/temporal-atrium`.
+
+## Interaction update
+
+- Actor rows now show occupants in each atrium zone. Native drag-and-drop invokes the same validated movement or placement commands as the selectors; collapsed zones reject drops. Selectors remain available for keyboard and touch use.
+- Grey Man now has a physical zone (initially 0) independent of his turn counter. He must be moved or withdrawn if stranded by collapse. His zone does not alter turn frequency.
+- Player forecasts cover the complete next 12 ticks, including repeated turns and events after a scheduled ritual phase. Ruling: assume scheduled ritual success for projection only, and omit turns for projected collapsed occupants. Cost if wrong: a DM rescue or delay changes the forecast, which recalculates immediately.
+- Ritual rows identify phase number and the collapsing pair explicitly, e.g. Phase 2/6: zones −5 and +5 will collapse.
+- Finish & next is one atomic, undoable command. It completes one turn and begins one next event, preserving precedence and stopping on an unresolved ritual or collapsed occupant. Finish & pause remains available for between-turn adjudication.
+- Live update preserves the existing encounter and DM key using a private temporary checkpoint. Prior undo history is unavailable after this server restart; future undo operates normally.
+- Interaction review: no blocking findings. Deferred scaling concern: the same forecast is recomputed for each player connection; ordinary party sizes are fast, but a hypothetical 100-player scene would benefit from shared projection caching.
+- Interaction verification: 41 automated tests pass. Real Chrome verifies pending-player placement by drag/drop, waiting-actor movement, Grey Man dragging, actor icon types, repeated player turns, ritual phase/zone details, and atomic turn advancement.

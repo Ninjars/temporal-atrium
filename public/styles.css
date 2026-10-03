@@ -1205,3 +1205,187 @@ footer {
 [hidden] {
   display: none !important;
 }
+
+/* Actor types use the same symbols and colours in every view. */
+.actor-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+  border: 1px solid transparent;
+}
+.actor-icon.compact {
+  width: 21px;
+  height: 21px;
+  font-size: 12px;
+  border-radius: 4px;
+}
+.actor-icon.pc {
+  background: #dbeafe;
+  color: #175cd3;
+  border-color: #92b8f6;
+}
+.actor-icon.npc {
+  background: #d4f5df;
+  color: #117438;
+  border-color: #83cda0;
+}
+.actor-icon.enemy {
+  background: #ffe0df;
+  color: #c62828;
+  border-color: #f39c99;
+}
+.actor-icon.grey {
+  background: #a31124;
+  color: #fff;
+  border: 2px solid #660b16;
+  box-shadow: 0 0 0 2px #f8c5ca;
+}
+.actor-icon.ritual {
+  background: #eee2ff;
+  color: #7844ab;
+  border-color: #c4a1e6;
+}
+.actor-name,
+.current-name {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+.actor-legend {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+.actor-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.event-row.pc .event-body strong {
+  color: #1755ae;
+}
+.event-row.npc .event-body strong {
+  color: #146c35;
+}
+.event-row.enemy .event-body strong {
+  color: #b02323;
+}
+.event-row.grey .event-body strong {
+  color: #a31124;
+  font-weight: 750;
+}
+.badge.blue {
+  background: #e4eeff;
+  color: #1755ae;
+  border-color: #a9c6f5;
+}
+.zone-strip {
+  grid-template-columns: repeat(13, minmax(90px, 1fr));
+  align-items: stretch;
+}
+.zone {
+  min-height: 166px;
+  padding: 12px 5px 6px;
+  gap: 7px;
+}
+.zone-occupants {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 6px;
+  margin-top: 4px;
+  flex: 1;
+}
+.zone-actor {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  text-align: left;
+  padding: 6px 4px;
+  border: 1px solid #b9cff1;
+  border-radius: 5px;
+  background: #f1f6ff;
+  color: #174887;
+  font-size: 11px;
+  cursor: grab;
+  min-height: 33px;
+}
+.zone-actor:active {
+  cursor: grabbing;
+}
+.zone-actor > span:last-child {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.zone-actor.npc {
+  background: #edfaf1;
+  border-color: #9ccbaf;
+  color: #185d32;
+}
+.zone-actor.enemy {
+  background: #fff0ee;
+  border-color: #edaaa3;
+  color: #952525;
+}
+.zone-actor.grey {
+  background: #fce1e4;
+  border-color: #ad2637;
+  color: #870d1d;
+  font-weight: 700;
+}
+.zone-tools {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 24px;
+  gap: 4px;
+}
+.zone.drop-target {
+  outline: 3px solid #2174d8;
+  outline-offset: -2px;
+  background: #dcecff;
+}
+.unplaced-actors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0;
+}
+.unplaced-actors > span {
+  color: #7e6b40;
+  font-size: 11px;
+}
+.unplaced-actors .zone-actor {
+  width: auto;
+  max-width: 190px;
+}
+.now-card .button.subtle {
+  margin-top: 6px;
+}
+@media (max-width: 720px) {
+  .zone-strip {
+    grid-template-columns: repeat(13, 110px);
+  }
+  .actor-legend {
+    gap: 8px;
+  }
+  .actor-legend > span {
+    font-size: 9px;
+    gap: 4px;
+  }
+  .zone-panel > .panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

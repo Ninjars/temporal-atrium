@@ -79,6 +79,25 @@ export function panel(title, content, action = null) {
     content,
   );
 }
+export function actorIcon(type, compact = false) {
+  const labels = {
+    pc: "Player",
+    npc: "NPC",
+    enemy: "Enemy",
+    grey: "Grey Man",
+    ritual: "Ritual",
+  };
+  const symbols = { pc: "◆", npc: "●", enemy: "▲", grey: "✦", ritual: "✧" };
+  return el(
+    "span",
+    {
+      class: `actor-icon ${type} ${compact ? "compact" : ""}`,
+      role: "img",
+      "aria-label": labels[type] ?? "Actor",
+    },
+    symbols[type] ?? "●",
+  );
+}
 export function eventRows(events, { ticks = false, personalId = null } = {}) {
   return el(
     "ol",
@@ -87,7 +106,7 @@ export function eventRows(events, { ticks = false, personalId = null } = {}) {
       el(
         "li",
         {
-          class: `event-row ${e.kind} ${e.id === personalId ? "personal" : ""}`,
+          class: `event-row ${e.kind} ${e.actorType ?? ""} ${e.id === personalId ? "personal" : ""}`,
           "data-event-key": e.key ?? `${e.id}:${i}`,
         },
         el(
@@ -95,30 +114,22 @@ export function eventRows(events, { ticks = false, personalId = null } = {}) {
           { class: "event-index" },
           ticks ? fmt(e.at) : String(i + 1).padStart(2, "0"),
         ),
-        el(
-          "div",
-          { class: `event-icon ${e.actorType ?? e.kind}` },
-          e.kind === "ritual"
-            ? "✧"
-            : e.kind === "grey"
-              ? "◇"
-              : e.name.slice(0, 1).toUpperCase(),
-        ),
+        actorIcon(e.actorType ?? e.kind),
         el(
           "div",
           { class: "event-body" },
           el("strong", {}, e.name),
-          el(
-            "span",
-            {},
-            e.kind === "ritual"
-              ? "The next phase of the ritual"
-              : e.kind === "grey"
-                ? "Outside the temporal clock"
-                : `${e.actorType === "pc" ? "Player character" : e.actorType === "npc" ? "Ally" : "Enemy"} · zone ${zoneLabel(e.zone)}`,
-          ),
+          e.kind === "grey"
+            ? null
+            : el(
+                "span",
+                {},
+                e.kind === "ritual"
+                  ? `Phase ${e.ritualPhase}/6: zones −${e.collapseZone} and +${e.collapseZone} will collapse`
+                  : `${e.actorType === "pc" ? "Player" : e.actorType === "npc" ? "NPC" : "Enemy"} · zone ${zoneLabel(e.zone)}`,
+              ),
         ),
-        e.id === personalId ? badge("YOU", "teal") : null,
+        e.id === personalId ? badge("YOU", "blue") : null,
       ),
     ),
   );

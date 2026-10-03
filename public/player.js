@@ -1,4 +1,13 @@
-import { el, badge, panel, eventRows, empty, fmt, zoneLabel } from "./ui.js";
+import {
+  el,
+  badge,
+  panel,
+  eventRows,
+  empty,
+  fmt,
+  zoneLabel,
+  actorIcon,
+} from "./ui.js";
 export function renderPlayer(s) {
   const a = s.actor;
   return el(
@@ -10,15 +19,8 @@ export function renderPlayer(s) {
       el(
         "div",
         {},
-        el("p", { class: "eyebrow" }, "YOUR PLACE IN TIME"),
-        el("h1", {}, a.name),
-        el(
-          "p",
-          { class: "subtitle" },
-          s.waiting
-            ? "The DM is preparing the encounter."
-            : "Watch the order shift as time bends around you.",
-        ),
+        el("p", { class: "eyebrow" }, "PLAYER VIEW"),
+        el("h1", { class: "actor-name" }, actorIcon("pc"), a.name),
       ),
       badge(
         s.waiting ? "PREPARING" : "LIVE ENCOUNTER",
@@ -39,7 +41,7 @@ export function renderPlayer(s) {
           a.collapsed
             ? "Collapsed · awaiting DM resolution"
             : a.placed
-              ? "Temporal position"
+              ? "Current zone"
               : "Awaiting placement",
         ),
       ),
@@ -76,14 +78,17 @@ export function renderPlayer(s) {
       ? el(
           "section",
           { class: "now-card" },
-          el("span", { class: "eyebrow" }, "HAPPENING NOW"),
-          el("h2", {}, s.active.name),
+          el("span", { class: "eyebrow" }, "CURRENT EVENT"),
+          el(
+            "h2",
+            { class: "current-name" },
+            actorIcon(s.active.actorType ?? s.active.kind),
+            s.active.name,
+          ),
           el(
             "span",
             {},
-            s.active.id === a.id
-              ? "It’s your turn."
-              : "Follow the action at the table.",
+            s.active.id === a.id ? "It’s your turn." : "Turn in progress.",
           ),
         )
       : null,
@@ -98,33 +103,33 @@ export function renderPlayer(s) {
       "Coming up",
       s.waiting
         ? empty(
-            "You’re in the scene",
+            "Registered",
             a.placed
-              ? "Your starting position is set. Waiting for the DM to begin."
-              : "Your DM will place you in a starting zone.",
+              ? "Waiting for the DM to begin."
+              : "Waiting for starting-zone placement.",
           )
         : s.events.length
           ? eventRows(s.events, { personalId: a.id })
           : empty(
-              "The future is unwritten",
+              "No upcoming events",
               "Waiting for the current event to resolve.",
             ),
-    ),
-    el(
-      "p",
-      { class: "timeline-note" },
-      "Your view ends at your next turn, the next ritual phase, or the near-future horizon. The order may change.",
     ),
     s.grey
       ? el(
           "div",
           { class: "grey-player" },
-          el("span", {}, "◇ The Grey Man"),
+          el(
+            "span",
+            { class: "actor-name" },
+            actorIcon("grey", true),
+            "The Grey Man",
+          ),
           el(
             "strong",
             {},
             s.grey.pending
-              ? "An activation is waiting"
+              ? "Activation queued"
               : `${s.grey.count} / ${s.grey.partySize} player turns`,
           ),
         )
