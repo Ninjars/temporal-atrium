@@ -76,3 +76,7 @@ The suite uses Node's built-in test runner and actual local WebSocket connection
 An optional Chrome acceptance test is also included. With Playwright available, run `node test/browser.e2e.mjs`; alternatively pass the absolute path to a Playwright module as its first argument. It launches an isolated temporary encounter and exercises the DM/player UI, including reconnect, invitation fallback, and mobile overflow checks. It requires an installed Google Chrome browser.
 
 Design and implementation decisions are recorded in `docs/decisions.md`; the full specification and implementation plan are under `docs/superpowers/`.
+
+## License
+
+[MIT](LICENSE) © 2026 Jez (Ninjars).
