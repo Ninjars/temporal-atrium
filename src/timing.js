@@ -31,6 +31,7 @@ export function compareEvents(a, b) {
   return (
     a.at - b.at ||
     priority[a.kind] - priority[b.kind] ||
+    (b.splitPriority ?? 0) - (a.splitPriority ?? 0) ||
     (b.initiative ?? 0) - (a.initiative ?? 0) ||
     (a.order ?? 0) - (b.order ?? 0)
   );

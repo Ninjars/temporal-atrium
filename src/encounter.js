@@ -79,6 +79,7 @@ export function nextEvents(s) {
         zone: a.zone,
         initiative: a.initiative,
         order: a.order,
+        splitPriority: a.splitPriority,
         key: a.id,
       });
   return events.sort(compareEvents);
@@ -89,6 +90,46 @@ function log(s, message) {
 }
 function running(s) {
   requireThat(s.phase === "running", "Begin the encounter first.");
+}
+// Penalties are global ticks, separate from the zone-dependent natural wait.
+function rescheduleActor(s, a, oldDelay, newDelay) {
+  const penalty = Math.min(
+    a.delayPenalty ?? 0,
+    Math.max(0, a.nextActivation - s.now),
+  );
+  const naturalNext = a.nextActivation - penalty;
+  a.delayPenalty = penalty;
+  return (
+    ((penalty > 0 || a.splitPriority) && naturalNext <= s.now
+      ? s.now
+      : reschedule({
+          now: s.now,
+          next: naturalNext,
+          oldDelay: oldDelay * (a.waitIntervals ?? 1),
+          newDelay: newDelay * (a.waitIntervals ?? 1),
+        })) + penalty
+  );
+}
+// Skip positions refer to future natural activation slots, so zone changes keep
+// the selected turn skipped even when its projected timestamp changes.
+function markSkipped(actor, occurrence) {
+  const skips = actor.skipTurns ?? [];
+  let slot = occurrence;
+  for (const skipped of skips) if (skipped <= slot) slot++;
+  actor.skipTurns = [...skips, slot].sort((a, b) => a - b);
+}
+function consumeSlot(actor) {
+  actor.skipTurns = (actor.skipTurns ?? [])
+    .filter((n) => n > 0)
+    .map((n) => n - 1);
+}
+function omitSkippedTurns(s, actor) {
+  while (actor.skipTurns?.[0] === 0) {
+    actor.nextActivation += delayFor(zoneOf(s, actor.zone, true).step);
+    actor.waitIntervals = (actor.waitIntervals ?? 1) + 1;
+    delete actor.splitPriority;
+    consumeSlot(actor);
+  }
 }
 function relocate(s, a, zone) {
   const old = zoneOf(s, a.zone, true),
@@ -101,12 +142,12 @@ function relocate(s, a, zone) {
     before !== null &&
     !(s.active?.kind === "actor" && s.active.id === a.id)
   ) {
-    a.nextActivation = reschedule({
-      now: s.now,
-      next: before,
-      oldDelay: delayFor(old.step),
-      newDelay: delayFor(target.step),
-    });
+    a.nextActivation = rescheduleActor(
+      s,
+      a,
+      delayFor(old.step),
+      delayFor(target.step),
+    );
     if (before !== a.nextActivation)
       log(
         s,
@@ -185,6 +226,92 @@ export function applyCommand(state, c) {
       log(s, `${a.name} moved to zone ${c.zone >= 0 ? "+" : ""}${c.zone}.`);
       break;
     }
+    case "splitActor": {
+      running(s);
+      const source = actorOf(s, c.id);
+      requireThat(source.type === "enemy", "Only enemy actors can be split.");
+      requireThat(source.placed, "Place the enemy first.");
+      requireThat(live(s).length < 100, "The scene is limited to 100 actors.");
+      const match = source.name.match(/^(.*?)(\d+)$/);
+      const base = match ? match[1] : source.name + " ";
+      let suffix = match ? Number(match[2]) + 1 : 1;
+      let copyName;
+      do {
+        requireThat(suffix <= 99, "Enemy suffix cannot exceed 99.");
+        const digits = String(suffix++);
+        copyName = base.slice(0, 80 - digits.length) + digits;
+      } while (live(s).some((a) => a.name === copyName));
+      const order = s.serial++;
+      const copy = {
+        ...source,
+        id: randomUUID(),
+        name: copyName,
+        order,
+        lastActivation: null,
+        nextActivation: s.now,
+        delayPenalty: 0,
+        splitPriority: order + 1,
+        skipTurns: [],
+        waitIntervals: 1,
+      };
+      s.actors.push(copy);
+      log(s, `${source.name} split · ${copy.name} acts next.`);
+      break;
+    }
+    case "skipActor": {
+      running(s);
+      requireThat(
+        Number.isInteger(c.occurrence) &&
+          c.occurrence >= 0 &&
+          c.occurrence < 100,
+        "Choose a valid upcoming occurrence.",
+      );
+      if (c.id === "grey") {
+        requireThat(s.grey.enabled, "The Grey Man is not present.");
+        markSkipped(s.grey, c.occurrence);
+        if (
+          s.grey.pending &&
+          s.active?.kind !== "grey" &&
+          s.grey.skipTurns[0] === 0
+        ) {
+          s.grey.pending = false;
+          consumeSlot(s.grey);
+        }
+        log(s, "The Grey Man: upcoming action skipped.");
+      } else {
+        const a = actorOf(s, c.id);
+        requireThat(
+          a.placed &&
+            a.nextActivation !== null &&
+            !zoneOf(s, a.zone, true).collapsed,
+          "Choose an actor with upcoming turns.",
+        );
+        markSkipped(a, c.occurrence);
+        if (!(s.active?.kind === "actor" && s.active.id === a.id))
+          omitSkippedTurns(s, a);
+        log(s, `${a.name}: upcoming action skipped.`);
+      }
+      break;
+    }
+    case "delayActor": {
+      running(s);
+      const a = actorOf(s, c.id);
+      requireThat(
+        a.placed && a.nextActivation !== null,
+        "Place the actor before applying a delay.",
+      );
+      const active = s.active?.kind === "actor" && s.active.id === a.id;
+      const remaining = active
+        ? (a.delayPenalty ?? 0)
+        : Math.min(a.delayPenalty ?? 0, Math.max(0, a.nextActivation - s.now));
+      a.delayPenalty = remaining + 6;
+      if (!active) a.nextActivation += 6;
+      log(
+        s,
+        `${a.name}: delay +6${active ? " on next turn" : ` · next at ${a.nextActivation.toFixed(2)}`}.`,
+      );
+      break;
+    }
     case "removeActor": {
       const a = actorOf(s, c.id);
       a.removed = true;
@@ -211,6 +338,14 @@ export function applyCommand(state, c) {
       requireThat(next, "No events scheduled.");
       s.now = Math.max(s.now, next.at);
       s.active = { ...next, at: s.now };
+      if (next.kind === "actor") {
+        const actor = actorOf(s, next.id);
+        actor.delayPenalty = 0;
+        actor.waitIntervals = 1;
+        consumeSlot(actor);
+        delete actor.splitPriority;
+      }
+      if (next.kind === "grey") consumeSlot(s.grey);
       log(s, `${next.name} begins.`);
       break;
     }
@@ -224,11 +359,15 @@ export function applyCommand(state, c) {
       else {
         const a = actorOf(s, s.active.id);
         a.lastActivation = s.now;
-        a.nextActivation = s.now + delayFor(zoneOf(s, a.zone).step);
+        a.waitIntervals = 1;
+        a.nextActivation =
+          s.now + delayFor(zoneOf(s, a.zone).step) + (a.delayPenalty ?? 0);
+        omitSkippedTurns(s, a);
         if (a.type === "pc" && s.grey.enabled) {
           s.grey.count++;
           if (s.grey.count >= s.grey.partySize) {
-            s.grey.pending = true;
+            if (s.grey.skipTurns?.[0] === 0) consumeSlot(s.grey);
+            else s.grey.pending = true;
             s.grey.count = 0;
           }
         }
@@ -252,12 +391,12 @@ export function applyCommand(state, c) {
           !(s.active?.kind === "actor" && s.active.id === a.id)
         ) {
           const old = a.nextActivation;
-          a.nextActivation = reschedule({
-            now: s.now,
-            next: old,
-            oldDelay: delayFor(before),
-            newDelay: delayFor(after),
-          });
+          a.nextActivation = rescheduleActor(
+            s,
+            a,
+            delayFor(before),
+            delayFor(after),
+          );
           if (old !== a.nextActivation)
             log(
               s,

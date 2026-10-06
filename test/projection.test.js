@@ -148,3 +148,67 @@ test("player forecast shows survivors after an active ritual and excludes projec
   );
   assert.equal(s.actors[0].removed, false);
 });
+
+test("player coming up contains every event through twelve ticks even with more than twelve entries", () => {
+  let s = createEncounter();
+  for (let i = 0; i < 15; i++)
+    s = applyCommand(s, {
+      type: "addActor",
+      name: `Player ${i}`,
+      playerName: "Player",
+      actorType: "pc",
+      initiative: i,
+      zone: 6,
+    });
+  s = applyCommand(s, { type: "beginEncounter" });
+  const projected = forecast(s, {
+    horizon: 12,
+    maxEvents: 2000,
+    throughRitual: true,
+  });
+  assert.ok(projected.events.length > 12);
+  assert.ok(projected.events.every((e) => e.at <= s.now + 12));
+  assert.deepEqual(
+    playerView(s, s.actors[0].id).events.map((e) => e.key),
+    projected.events.map((e) => e.key),
+  );
+});
+test("skipping a selected forecast row removes that occurrence without consuming earlier turns", () => {
+  let s = fixture();
+  const id = s.actors[0].id;
+  s = applyCommand(s, { type: "skipActor", id, occurrence: 1 });
+  assert.deepEqual(
+    forecast(s, { horizon: 12 })
+      .events.filter((e) => e.id === id)
+      .map((e) => e.at),
+    [0, 6, 9, 12],
+  );
+});
+
+test("DM coming up continues through scheduled ritual phases without changing the encounter", () => {
+  const s = applyCommand(fixture(), { type: "ritualStart" });
+  const before = structuredClone(s),
+    d = dmView(s);
+  assert.ok(d.events.some((e) => e.kind === "actor" && e.at > 12));
+  assert.deepEqual(
+    d.events.filter((e) => e.kind === "ritual").map((e) => e.ritualPhase),
+    [1, 2, 3, 4],
+  );
+  assert.equal(
+    d.events.some((e) => e.id === s.actors[0].id && e.at >= 12),
+    false,
+  );
+  assert.deepEqual(s, before);
+});
+test("DM preview remains populated while a ritual phase awaits resolution", () => {
+  let s = applyCommand(fixture(), { type: "ritualStart" });
+  s.actors[0].nextActivation = 13;
+  s.actors[1].nextActivation = 14;
+  s = applyCommand(s, { type: "beginNext" });
+  const before = structuredClone(s),
+    d = dmView(s);
+  assert.equal(d.active.kind, "ritual");
+  assert.ok(d.events.some((e) => e.name === "Torren" && e.at === 14));
+  assert.ok(d.events.some((e) => e.kind === "ritual" && e.ritualPhase === 2));
+  assert.deepEqual(s, before);
+});

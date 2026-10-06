@@ -98,7 +98,15 @@ export function actorIcon(type, compact = false) {
     symbols[type] ?? "●",
   );
 }
-export function eventRows(events, { ticks = false, personalId = null } = {}) {
+export function eventRows(
+  events,
+  {
+    ticks = false,
+    personalId = null,
+    onSkip = null,
+    showEnemyZones = true,
+  } = {},
+) {
   return el(
     "ol",
     { class: "timeline" },
@@ -126,10 +134,23 @@ export function eventRows(events, { ticks = false, personalId = null } = {}) {
                 {},
                 e.kind === "ritual"
                   ? `Phase ${e.ritualPhase}/6: zones −${e.collapseZone} and +${e.collapseZone} will collapse`
-                  : `${e.actorType === "pc" ? "Player" : e.actorType === "npc" ? "NPC" : "Enemy"} · zone ${zoneLabel(e.zone)}`,
+                  : `${e.actorType === "pc" ? "Player" : e.actorType === "npc" ? "NPC" : "Enemy"}${showEnemyZones || e.actorType !== "enemy" ? ` · zone ${zoneLabel(e.zone)}` : ""}`,
               ),
         ),
         e.id === personalId ? badge("YOU", "blue") : null,
+        onSkip && (e.kind === "actor" || e.kind === "grey")
+          ? el(
+              "button",
+              {
+                type: "button",
+                class: "button secondary small event-skip",
+                "data-mutate": "true",
+                "aria-label": `Skip ${e.name} at tick ${fmt(e.at)}`,
+                onClick: () => onSkip(e),
+              },
+              "Skip",
+            )
+          : null,
       ),
     ),
   );

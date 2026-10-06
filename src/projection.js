@@ -47,7 +47,7 @@ export function forecast(
     if (!e || e.at > state.now + horizon) return { events, truncated: false };
     const occurrence = occurrences.get(e.key) ?? 0;
     occurrences.set(e.key, occurrence + 1);
-    events.push({ ...e, key: `${e.key}:${occurrence}` });
+    events.push({ ...e, occurrence, key: `${e.key}:${occurrence}` });
     if (e.kind === "ritual" && !throughRitual)
       return { events, truncated: false };
     s = applyCommand(s, { type: "beginNext" });
@@ -113,6 +113,6 @@ export function dmView(s) {
     actors: s.actors.filter((a) => !a.removed),
     hasNext: nextEvent !== null,
     nextEvent,
-    ...forecast(s),
+    ...forecast(s, { throughRitual: true }),
   };
 }

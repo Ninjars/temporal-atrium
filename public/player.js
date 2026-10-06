@@ -109,7 +109,7 @@ export function renderPlayer(s) {
               : "Waiting for starting-zone placement.",
           )
         : s.events.length
-          ? eventRows(s.events, { personalId: a.id })
+          ? eventRows(s.events, { personalId: a.id, showEnemyZones: false })
           : empty(
               "No upcoming events",
               "Waiting for the current event to resolve.",

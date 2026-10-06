@@ -40,3 +40,27 @@ Plan: docs/superpowers/plans/2026-10-03-temporal-atrium.md
 - Live update preserves the existing encounter and DM key using a private temporary checkpoint. Prior undo history is unavailable after this server restart; future undo operates normally.
 - Interaction review: no blocking findings. Deferred scaling concern: the same forecast is recomputed for each player connection; ordinary party sizes are fast, but a hypothetical 100-player scene would benefit from shared projection caching.
 - Interaction verification: 41 automated tests pass. Real Chrome verifies pending-player placement by drag/drop, waiting-actor movement, Grey Man dragging, actor icon types, repeated player turns, ritual phase/zone details, and atomic turn advancement.
+
+## Actor delay penalties
+
+- Added DM-only Delay +6 to each normal actor roster card, enabled after placement and encounter start. Repeated penalties stack.
+- Waiting actors move six ticks later immediately. Active turns continue; their penalty is added when scheduling the next turn and cleared when that turn begins.
+- Penalties are fixed global ticks, separate from zone-dependent wait progress. Movement and pillar changes preserve any remaining penalty.
+
+## Splitting enemy groups
+
+- Split is available on enemy roster cards during an encounter. The copy retains zone and initiative, gets a separate identity, and is ready at the current tick without interrupting the active turn.
+- A one-turn priority places the newest split ahead of other actors at the same tick. Due ritual events and the Grey Man retain their existing precedence. Moving a ready copy keeps it ready; future turns use its destination zone normally.
+- Names append “ 1” or increment the existing numeric suffix, skipping occupied names. Suffixes stop at 99. The original remains unchanged; copied waiting time and penalties are cleared so the copy can act next.
+
+## Skipping upcoming actions
+
+- The DM can skip a selected actor or Grey Man row in Coming up. Earlier occurrences and the active turn remain intact. Skipped PC actions do not count towards Grey Man activations.
+- Skips follow activation slots rather than timestamps, so movement and pillar changes preserve the selected omission. Skipping a waiting turn adds one zone interval; future omissions are applied when scheduling those turns. Undo restores a skipped action.
+- Player Coming up continues to include all events in the next 12 ticks, with no 12-entry limit. Boundary and crowded-window checks verify this.
+- Verification: 56 automated tests pass; Chrome checks selected repeated rows, active-turn preservation, Undo and mobile layout.
+
+## DM preview through ritual phases
+
+- The DM preview now continues through scheduled and active ritual phases within its 48-tick / 100-event bounds. It shares the player forecast's assumption that scheduled phases succeed; projected collapsed occupants stop contributing turns until the DM changes their position.
+- Actual phases still require DM resolution. Forecasting leaves live actors, current turns, ritual progress and the clock untouched.

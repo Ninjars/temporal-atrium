@@ -139,7 +139,7 @@ export function renderDM(s, { command, notify }) {
     el(
       "div",
       { class: "panel-heading" },
-      el("h2", {}, "The atrium"),
+      el("h2", {}, "The Atrium"),
       el(
         "div",
         { class: "actor-legend" },
@@ -326,6 +326,35 @@ export function renderDM(s, { command, notify }) {
           remove.setAttribute("aria-label", `Remove ${a.name}`);
           row.append(remove);
           card.append(row);
+          const delay = button(
+            "Delay +6",
+            () => act("delayActor", { id: a.id }),
+            "secondary small",
+            s.phase !== "running" || !a.placed,
+          );
+          delay.setAttribute("aria-label", `Delay ${a.name} by 6 ticks`);
+          delay.title = "Add six ticks to this actor’s next turn";
+          const split =
+            a.type === "enemy"
+              ? button(
+                  "Split",
+                  () => act("splitActor", { id: a.id }),
+                  "secondary small",
+                  s.phase !== "running" || !a.placed,
+                )
+              : null;
+          if (split) split.setAttribute("aria-label", `Split ${a.name}`);
+          card.append(
+            el(
+              "div",
+              { class: "actor-penalty" },
+              split,
+              delay,
+              active?.id === a.id && a.delayPenalty > 0
+                ? el("small", {}, `Next turn +${fmt(a.delayPenalty)} ticks`)
+                : null,
+            ),
+          );
           return card;
         })
       : empty("No actors added", "Players can register from the shared link."),
@@ -483,7 +512,17 @@ export function renderDM(s, { command, notify }) {
   const timeline = panel(
     s.phase === "setup" ? "Opening sequence" : "Coming up",
     s.events.length
-      ? eventRows(s.events, { ticks: true })
+      ? eventRows(s.events, {
+          ticks: true,
+          onSkip:
+            s.phase === "running"
+              ? (e) =>
+                  act("skipActor", {
+                    id: e.kind === "grey" ? "grey" : e.id,
+                    occurrence: e.occurrence,
+                  })
+              : null,
+        })
       : empty(
           s.phase === "setup"
             ? "No opening sequence"
@@ -509,7 +548,7 @@ export function renderDM(s, { command, notify }) {
       { class: "timeline-note" },
       s.truncated
         ? "Preview limited to 100 events."
-        : "Preview uses current rates and stops at the next ritual phase.",
+        : "Preview assumes scheduled ritual phases succeed.",
     ),
   );
   const ritual = panel(

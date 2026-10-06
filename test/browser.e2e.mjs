@@ -263,6 +263,73 @@ try {
     path: "/tmp/temporal-atrium-check/actor-zones.png",
     fullPage: true,
   });
+  await click(dm, "Begin encounter →");
+  await click(dm, "Delay Torren by 6 ticks");
+  const torren = dm.locator(".actor-card").filter({
+    has: dm.getByRole("button", {
+      name: "Delay Torren by 6 ticks",
+      exact: true,
+    }),
+  });
+  await torren.getByText("Next 7.2", { exact: true }).waitFor();
+  await click(dm, "Begin next event →");
+  await click(dm, "Delay Mira by 6 ticks");
+  await visible(dm, "Next turn +6 ticks");
+  assert.ok((await dm.locator(".now-card h2").innerText()).endsWith("Mira"));
+  await click(dm, "Finish & pause");
+  const mira = dm.locator(".actor-card").filter({
+    has: dm.getByRole("button", {
+      name: "Delay Mira by 6 ticks",
+      exact: true,
+    }),
+  });
+  await mira.getByText("Next 10", { exact: true }).waitFor();
+  await click(dm, "Split Giant spiders");
+  await visible(dm, "Giant spiders 1");
+  await dm
+    .getByLabel("Zone for Giant spiders 1", { exact: true })
+    .selectOption("-3");
+  await click(dm, "Begin next event →");
+  assert.ok(
+    (await dm.locator(".now-card h2").innerText()).endsWith("Giant spiders 1"),
+  );
+  await click(dm, "Split Giant spiders 1");
+  await click(dm, "Finish & next →");
+  assert.ok(
+    (await dm.locator(".now-card h2").innerText()).endsWith("Giant spiders 2"),
+  );
+  await click(dm, "Skip Mira at tick 14");
+  assert.equal(
+    await dm
+      .getByRole("button", { name: "Skip Mira at tick 14", exact: true })
+      .count(),
+    0,
+  );
+  await dm
+    .getByRole("button", { name: "Skip Mira at tick 10", exact: true })
+    .waitFor();
+  assert.ok(
+    (await dm.locator(".now-card h2").innerText()).endsWith("Giant spiders 2"),
+  );
+  await click(dm, "Skip Mira at tick 10");
+  assert.equal(
+    await dm
+      .getByRole("button", { name: "Skip Mira at tick 10", exact: true })
+      .count(),
+    0,
+  );
+  await dm
+    .getByRole("button", { name: "Skip Mira at tick 18", exact: true })
+    .waitFor();
+  await click(dm, "↶ Undo last change");
+  await dm
+    .getByRole("button", { name: "Skip Mira at tick 10", exact: true })
+    .waitFor();
+  await dm.setViewportSize({ width: 390, height: 844 });
+  assert.equal(
+    await dm.evaluate(() => document.documentElement.scrollWidth > innerWidth),
+    false,
+  );
   assert.deepEqual(errors, []);
   console.log(
     "PASS: registration, placement, rejoining, ritual controls, Grey Man, movement, pillar changes, collapse, refresh, removal, safe text, desktop/mobile layouts; no browser errors.",

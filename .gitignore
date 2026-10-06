@@ -1,3 +1,26 @@
 node_modules/
 .superpowers/
 .DS_Store
+
+# Local credentials and configuration
+.env
+.env.*
+!.env.example
+!.env.sample
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+.secrets/
+
+# Local encounter snapshots (may contain the DM key and player data)
+*-checkpoint.json
+.local/
+
+# Generated output and test artifacts
+*.log
+coverage/
+dist/
+playwright-report/
+test-results/

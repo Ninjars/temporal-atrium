@@ -248,3 +248,175 @@ test("Grey Man position is independent of scheduling and a collapsed zone blocks
   s = cmd(s, "moveGreyMan", { zone: 0 });
   assert.doesNotThrow(() => cmd(s, "beginNext"));
 });
+
+test("delay penalties reorder waiting actors immediately and stack", () => {
+  let s = ready();
+  s = cmd(s, "addActor", {
+    name: "Spider",
+    actorType: "enemy",
+    initiative: 10,
+    zone: 6,
+  });
+  const id = s.actors[0].id;
+  s = cmd(s, "delayActor", { id });
+  assert.equal(s.now, 0);
+  assert.equal(s.actors[0].nextActivation, 6);
+  assert.equal(nextEvents(s)[0].name, "Spider");
+  s = cmd(s, "delayActor", { id });
+  assert.equal(s.actors[0].nextActivation, 12);
+});
+test("active penalties defer to the next turn and are consumed only once", () => {
+  let s = cmd(ready(), "beginNext"),
+    id = s.actors[0].id;
+  s = cmd(s, "delayActor", { id });
+  s = cmd(s, "delayActor", { id });
+  assert.equal(s.active.id, id);
+  assert.equal(s.now, 0);
+  s = cmd(s, "moveActor", { id, zone: 6 });
+  s = cmd(s, "finishTurn");
+  assert.equal(s.actors[0].nextActivation, 15);
+  s = cmd(s, "beginNext");
+  s = cmd(s, "finishTurn");
+  assert.equal(s.actors[0].nextActivation, 18);
+});
+test("movement preserves fixed tick penalties while rescaling the natural wait", () => {
+  let s = ready(),
+    id = s.actors[0].id;
+  s = cmd(cmd(s, "beginNext"), "finishTurn");
+  s = cmd(s, "delayActor", { id });
+  s.now = 6;
+  s = cmd(s, "moveActor", { id, zone: 6 });
+  assert.equal(s.actors[0].nextActivation, 13.5);
+  s.now = 10;
+  s = cmd(s, "moveActor", { id, zone: 0 });
+  assert.equal(s.actors[0].nextActivation, 13.5);
+});
+test("penalties reject setup, unplaced and removed actors without changing state", () => {
+  let s = createEncounter();
+  assert.throws(() => cmd(s, "delayActor", { id: "missing" }));
+  s = ready();
+  s = cmd(s, "register", { name: "Late", playerName: "Sam", initiative: 10 });
+  assert.throws(() => cmd(s, "delayActor", { id: s.actors[1].id }));
+  const id = s.actors[0].id;
+  s = cmd(s, "removeActor", { id });
+  assert.throws(() => cmd(s, "delayActor", { id }));
+});
+
+test("splitting enemies copies placement and schedules the copy next without interrupting", () => {
+  let s = ready("enemy");
+  const original = s.actors[0];
+  s = cmd(s, "beginNext");
+  s = cmd(s, "splitActor", { id: original.id });
+  const copy = s.actors[1];
+  assert.equal(copy.name, "Mira 1");
+  assert.notEqual(copy.id, original.id);
+  assert.equal(copy.zone, original.zone);
+  assert.equal(copy.initiative, original.initiative);
+  assert.equal(s.active.id, original.id);
+  s = cmd(s, "moveActor", { id: copy.id, zone: -6 });
+  assert.equal(nextEvents(s)[0].id, copy.id);
+  assert.equal(nextEvents(s)[0].at, s.now);
+  s = cmd(s, "finishAndAdvance");
+  assert.equal(s.active.id, copy.id);
+  s = cmd(s, "finishTurn");
+  assert.equal(s.actors[1].nextActivation, 48);
+});
+test("split naming increments two-digit suffixes and skips existing names", () => {
+  let s = ready("enemy");
+  s.actors[0].name = "Spiders 9";
+  s = cmd(s, "splitActor", { id: s.actors[0].id });
+  s = cmd(s, "splitActor", { id: s.actors[0].id });
+  assert.deepEqual(
+    s.actors.map((a) => a.name),
+    ["Spiders 9", "Spiders 10", "Spiders 11"],
+  );
+  assert.equal(nextEvents(s)[0].id, s.actors[2].id);
+  s.actors[0].name = "Spiders 99";
+  assert.throws(() => cmd(s, "splitActor", { id: s.actors[0].id }), /99/);
+});
+test("splitting rejects non-enemies and clears copied penalties", () => {
+  const pc = ready();
+  assert.throws(() => cmd(pc, "splitActor", { id: pc.actors[0].id }), /enemy/i);
+  let s = ready("enemy");
+  s = cmd(s, "delayActor", { id: s.actors[0].id });
+  s = cmd(s, "splitActor", { id: s.actors[0].id });
+  assert.equal(s.actors[1].delayPenalty, 0);
+  assert.equal(nextEvents(s)[0].id, s.actors[1].id);
+  s = cmd(s, "delayActor", { id: s.actors[1].id });
+  assert.equal(s.actors[1].nextActivation, 6);
+});
+
+test("skipping a waiting PC turn leaves the clock and Grey Man counter unchanged", () => {
+  let s = ready();
+  s = cmd(s, "configureGreyMan", { enabled: true, partySize: 1 });
+  const before = structuredClone(s);
+  s = cmd(s, "skipActor", { id: s.actors[0].id, occurrence: 0 });
+  assert.equal(s.now, 0);
+  assert.equal(s.active, null);
+  assert.equal(s.actors[0].nextActivation, 12);
+  assert.equal(s.grey.count, 0);
+  assert.equal(s.grey.pending, false);
+  assert.equal(before.actors[0].nextActivation, 0);
+  s = cmd(s, "moveActor", { id: s.actors[0].id, zone: 6 });
+  assert.equal(s.actors[0].nextActivation, 3);
+});
+test("skipping a later forecast occurrence preserves earlier turns and follows movement", () => {
+  let s = ready("enemy");
+  const id = s.actors[0].id;
+  s = cmd(s, "skipActor", { id, occurrence: 1 });
+  assert.equal(s.actors[0].nextActivation, 0);
+  s = cmd(s, "beginNext");
+  s = cmd(s, "moveActor", { id, zone: 6 });
+  s = cmd(s, "finishTurn");
+  assert.equal(s.actors[0].nextActivation, 6);
+  s = cmd(s, "moveActor", { id, zone: 0 });
+  assert.equal(s.actors[0].nextActivation, 24);
+  s = cmd(s, "beginNext");
+  s = cmd(s, "finishTurn");
+  assert.equal(s.actors[0].nextActivation, 36);
+});
+test("skipping the active actor’s upcoming row preserves its current turn", () => {
+  let s = cmd(ready(), "beginNext");
+  const active = structuredClone(s.active),
+    id = s.actors[0].id;
+  s = cmd(s, "skipActor", { id, occurrence: 0 });
+  s = cmd(s, "skipActor", { id, occurrence: 0 });
+  assert.deepEqual(s.active, active);
+  s = cmd(s, "finishTurn");
+  assert.equal(s.actors[0].nextActivation, 36);
+});
+test("skip validates targets and occurrence numbers without mutating the scene", () => {
+  const s = ready();
+  for (const occurrence of [-1, 1.5, 100, null])
+    assert.throws(
+      () => cmd(s, "skipActor", { id: s.actors[0].id, occurrence }),
+      /occurrence/i,
+    );
+  assert.throws(
+    () => cmd(createEncounter(), "skipActor", { id: "missing", occurrence: 0 }),
+    /begin/i,
+  );
+  assert.equal(s.actors[0].nextActivation, 0);
+});
+
+test("Grey Man skips can remove a pending action or a later triggered action", () => {
+  let s = cmd(ready(), "configureGreyMan", { enabled: true, partySize: 1 });
+  s = cmd(s, "beginNext");
+  s = cmd(s, "finishTurn");
+  assert.equal(s.grey.pending, true);
+  s = cmd(s, "skipActor", { id: "grey", occurrence: 0 });
+  assert.equal(s.grey.pending, false);
+  s = cmd(s, "skipActor", { id: "grey", occurrence: 0 });
+  s = cmd(s, "beginNext");
+  s = cmd(s, "finishTurn");
+  assert.equal(s.grey.pending, false);
+  s = cmd(s, "beginNext");
+  s = cmd(s, "finishTurn");
+  assert.equal(s.grey.pending, true);
+});
+test("splitting an enemy never copies planned skipped actions", () => {
+  let s = ready("enemy");
+  s = cmd(s, "skipActor", { id: s.actors[0].id, occurrence: 1 });
+  s = cmd(s, "splitActor", { id: s.actors[0].id });
+  assert.deepEqual(s.actors[1].skipTurns, []);
+});
